@@ -1,0 +1,174 @@
+using System;
+using System.Collections;
+using TMPro;
+using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
+using Unity.Networking.Transport.Relay;
+using Unity.Services.Authentication;
+using Unity.Services.Core;
+using Unity.Services.Relay;
+using Unity.Services.Relay.Models;
+using Unity.Services.Vivox;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class ButtonBehaviourAdder : MonoBehaviour
+{
+    [SerializeField] Button buttonClient;
+    [SerializeField] Button buttonHost;
+    [SerializeField] TMP_InputField codeInputField;
+    [SerializeField] TextMeshProUGUI relayCodeText;
+    [SerializeField] TMP_InputField AvatarUrl;
+    [SerializeField] GameObject ServerCam;
+    public string NameField;
+    private string vivoxChannelName;
+    public int avatarIndex = 0;
+    [SerializeField] GameObject joiningCanvas;
+    [SerializeField] GameObject WarningCanvas;
+    public string IP;
+
+    async void Start()
+    {
+        AvatarUrl.text = FindAnyObjectByType<UrlLink>().getUrl();
+        await UnityServices.InitializeAsync();
+        await AuthenticationService.Instance.SignInAnonymouslyAsync();
+
+        if (!Application.HasUserAuthorization(UserAuthorization.Microphone))
+        {
+            await Application.RequestUserAuthorization(UserAuthorization.Microphone);
+        }
+
+        await VivoxService.Instance.InitializeAsync();
+        Debug.Log("Vivox SDK Initialized");
+        buttonHost.onClick.AddListener(CreateRelayAndStartHost);
+        buttonClient.onClick.AddListener(() => JoinRelayAndStartClient(codeInputField.text));
+    }
+
+    async void CreateRelayAndStartHost()
+    {
+        try
+        {
+            Allocation allocation = await RelayService.Instance.CreateAllocationAsync(10);
+            string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+            relayCodeText.text = "Join Code: " + joinCode;
+            Debug.Log("Relay created with join code: " + joinCode);
+            var relayServerData = new RelayServerData(allocation, "dtls");
+            NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
+
+            vivoxChannelName = $"channel_{joinCode}";
+            NetworkManager.Singleton.StartServer();
+
+            await LoginVivox();
+            await JoinVivoxChannelAsHost(vivoxChannelName);
+            ServerCam.SetActive(true);
+            gameObject.SetActive(false);
+        }
+        catch (RelayServiceException e)
+        {
+            Debug.LogError($"Failed to create relay: {e.Message}");
+            WarningCanvas.SetActive(true);
+            WarningCanvas.GetComponentInChildren<TextMeshProUGUI>().text = $"Failed to create session: {e.Message}";
+            StartCoroutine(SetcanvasOff());
+        }
+    }
+
+    async void JoinRelayAndStartClient(string code)
+    {
+        if (NameField == string.Empty)
+        {
+            WarningCanvas.SetActive(true);
+            WarningCanvas.GetComponentInChildren<TextMeshProUGUI>().text = "Please enter the Name";
+            StartCoroutine(SetcanvasOff());
+            return;
+        }
+        if (relayCodeText.text == string.Empty)
+        {
+            WarningCanvas.SetActive(true);
+            WarningCanvas.GetComponentInChildren<TextMeshProUGUI>().text = "Please enter the code";
+            StartCoroutine(SetcanvasOff());
+            return;
+        }
+        try
+        {
+            JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(code);
+            var relayServerData = new RelayServerData(joinAllocation, "dtls");
+            NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
+
+            vivoxChannelName = $"channel_{code}";
+            NetworkManager.Singleton.StartClient();
+
+            await LoginVivox();
+            await JoinVivoxChannelAsClient(vivoxChannelName);
+            joiningCanvas.SetActive(true);
+        }
+        catch (RelayServiceException e)
+        {
+            Debug.LogError($"Failed to join relay: {e.Message}");
+            WarningCanvas.SetActive(true);
+            WarningCanvas.GetComponentInChildren<TextMeshProUGUI>().text = $"Failed to join session: {e.Message}";
+            StartCoroutine(SetcanvasOff());
+            joiningCanvas.SetActive(false);
+        }
+    }
+    IEnumerator SetcanvasOff()
+    {
+        yield return new WaitForSeconds(3);
+        WarningCanvas.SetActive(false);
+    }
+
+    private async System.Threading.Tasks.Task LoginVivox()
+    {
+        var options = new LoginOptions();
+        options.DisplayName = AuthenticationService.Instance.PlayerId;
+        options.EnableTTS = false;
+        await VivoxService.Instance.LoginAsync(options);
+    }
+
+    private async System.Threading.Tasks.Task JoinVivoxChannelAsHost(string channelName)
+    {
+        await VivoxService.Instance.JoinGroupChannelAsync(
+            channelName,
+            ChatCapability.TextAndAudio
+        );
+    }
+
+    private async System.Threading.Tasks.Task JoinVivoxChannelAsClient(string channelName)
+    {
+        await VivoxService.Instance.JoinGroupChannelAsync(
+            channelName,
+            ChatCapability.TextAndAudio
+        );
+    }
+
+    public async System.Threading.Tasks.Task LeaveVivoxChannel()
+    {
+        if (!string.IsNullOrEmpty(vivoxChannelName))
+        {
+            await VivoxService.Instance.LeaveChannelAsync(vivoxChannelName);
+        }
+    }
+
+    public async System.Threading.Tasks.Task LogoutVivox()
+    {
+        await VivoxService.Instance.LogoutAsync();
+    }
+
+    private void OnApplicationQuit()
+    {
+        _ = LeaveVivoxChannel();
+        _ = LogoutVivox();
+    }
+
+    public void setName(string name)
+    {
+        NameField = name;
+    }
+    public string getVoiceChannelName()
+    {
+        return vivoxChannelName;
+    }
+    public void SetIP(string ip)
+    {
+        IP = ip;
+    }
+}
