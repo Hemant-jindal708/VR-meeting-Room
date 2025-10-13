@@ -56,5 +56,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "VR meeting Room.sln"
+    "dotnet.defaultSolution": "VR meeting Room.sln",
+    "FSharp.suggestGitignore": false
 }

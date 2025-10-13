@@ -1,4 +1,4 @@
-using System.Linq;
+using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,10 +9,11 @@ public class PresenterManager : NetworkBehaviour
     public bool present = false;
     [SerializeField] int maxPresenters;
     ScreenReceiver currentPresenter;
+    [SerializeField] TextMeshProUGUI presentingText;
 
     void Update()
     {
-        if (present)
+        if (present && currentPresenter != null)
             rawImage.texture = currentPresenter.rawImage.texture;
         else
             rawImage.texture = Texture2D.blackTexture;
@@ -43,16 +44,15 @@ public class PresenterManager : NetworkBehaviour
             Debug.LogWarning("Invalid NetworkObjectReference received!");
         }
     }
-    public void stopPresenting()
+    public void setPresent(bool isPresent)
     {
-        present = false;
-        rawImage.texture = Texture2D.blackTexture;
-        stopPresentingClientRpc();
+        present = isPresent;
+        presentingText.text = present ? "Stop Presenting" : "Start Presenting";
+        setPresentClientRpc(isPresent);
     }
     [ClientRpc]
-    public void stopPresentingClientRpc()
+    public void setPresentClientRpc(bool isPresent)
     {
-        present = false;
-        rawImage.texture = Texture2D.blackTexture;
+        present = isPresent;
     }
 }

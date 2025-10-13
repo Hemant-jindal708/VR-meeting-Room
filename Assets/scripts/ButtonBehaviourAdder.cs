@@ -90,11 +90,12 @@ public class ButtonBehaviourAdder : MonoBehaviour
         }
         try
         {
-            JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(code);
+            Debug.Log("Code entered: " + code.ToUpper());
+            JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(code.ToUpper());
             var relayServerData = new RelayServerData(joinAllocation, "dtls");
             NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
 
-            vivoxChannelName = $"channel_{code}";
+            vivoxChannelName = $"channel_{code.ToUpper()}";
             NetworkManager.Singleton.StartClient();
 
             await LoginVivox();
