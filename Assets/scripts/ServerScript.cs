@@ -9,8 +9,8 @@ public class ServerScript : NetworkBehaviour
     [SerializeField] GameObject buttonPrefab;
     [SerializeField] GameObject kicklist;
     [SerializeField] GameObject presenterlist;
-    ButtonScript[] buttonScriptsKick;
-    ButtonScript[] buttonScriptsPresenter;
+    ButtonScript[] buttonScriptsKick = new ButtonScript[10];
+    ButtonScript[] buttonScriptsPresenter = new ButtonScript[10];
 
     public void Start()
     {
@@ -30,6 +30,7 @@ public class ServerScript : NetworkBehaviour
         {
             if (btn != null && btn.clientId == ClientID)
             {
+                Debug.Log("button destroyed");
                 Destroy(btn.gameObject);
                 break;
             }
@@ -42,10 +43,11 @@ public class ServerScript : NetworkBehaviour
                 break;
             }
         }
+        FindAnyObjectByType<PresenterManager>().kickClientRpc(ClientID);
         Debug.Log($"[Server] kickParticipant called for client {ClientID}");
         NetworkManager.Singleton.DisconnectClient(ClientID);
     }
-
+    
     public void addButton(NetworkObjectReference networkObjectReference, string name)
     {
         Debug.Log($"[Server] Adding button for client {name}");
@@ -127,8 +129,22 @@ public class ServerScript : NetworkBehaviour
 
             kicklist.SetActive(iskicklistActive);
             presenterlist.SetActive(ispresenterlistActive);
-            buttonScriptsKick.Append(kickbuttonprefab.GetComponent<ButtonScript>());
-            buttonScriptsPresenter.Append(presenterbuttonprefab.GetComponent<ButtonScript>());
+            for (int i = 0; i < buttonScriptsKick.Length; i++)
+            {
+                if (buttonScriptsKick[i] == null)
+                {
+                    buttonScriptsKick[i] = kickbutton.GetComponent<ButtonScript>();
+                    break;
+                }
+            }
+            for (int i = 0; i < buttonScriptsPresenter.Length; i++)
+            {
+                if (buttonScriptsPresenter[i] == null)
+                {
+                    buttonScriptsPresenter[i] = presenterbutton.GetComponent<ButtonScript>();
+                    break;
+                }
+            }
             Debug.Log($"[Server] Buttons added for {name}. Kick list active: {iskicklistActive}, Presenter list active: {ispresenterlistActive}");
         }
         else

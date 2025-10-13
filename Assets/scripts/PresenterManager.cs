@@ -1,6 +1,8 @@
 using TMPro;
 using Unity.Netcode;
+using Unity.Services.Vivox;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class PresenterManager : NetworkBehaviour
@@ -54,5 +56,16 @@ public class PresenterManager : NetworkBehaviour
     public void setPresentClientRpc(bool isPresent)
     {
         present = isPresent;
+    }
+    [ClientRpc(RequireOwnership = false)]
+    public void kickClientRpc(ulong ClientID)
+    {
+        if (NetworkManager.Singleton.LocalClientId == ClientID)
+        {
+            SceneManager.LoadScene("MeetingRoom");
+            VivoxService.Instance.LogoutAsync();
+            NetworkManager.Singleton.DisconnectClient(ClientID);
+            Debug.Log($"[Client {ClientID}] Kicked from server.");
+        }
     }
 }

@@ -30,15 +30,18 @@ public class ButtonBehaviourAdder : MonoBehaviour
     async void Start()
     {
         AvatarUrl.text = FindAnyObjectByType<UrlLink>().getUrl();
-        await UnityServices.InitializeAsync();
-        await AuthenticationService.Instance.SignInAnonymouslyAsync();
-
         if (!Application.HasUserAuthorization(UserAuthorization.Microphone))
         {
             await Application.RequestUserAuthorization(UserAuthorization.Microphone);
         }
+        if (UnityServices.State != ServicesInitializationState.Initialized)
+        {
+            await UnityServices.InitializeAsync();
+            await AuthenticationService.Instance.SignInAnonymouslyAsync();
+            await VivoxService.Instance.InitializeAsync();
+        }
 
-        await VivoxService.Instance.InitializeAsync();
+
         Debug.Log("Vivox SDK Initialized");
         buttonHost.onClick.AddListener(CreateRelayAndStartHost);
         buttonClient.onClick.AddListener(() => JoinRelayAndStartClient(codeInputField.text));
