@@ -27,7 +27,7 @@ It enables online multiplayer gameplay with **Ready Player Me avatars**, voice c
 
 | Component | Technology |
 |-----------|------------|
-| Unity Engine | 2022.3+ |
+| Unity Engine | 6000.2+ |
 | Networking | Netcode for GameObjects |
 | Relay Service | Unity Relay |
 | Voice Chat | Vivox |
