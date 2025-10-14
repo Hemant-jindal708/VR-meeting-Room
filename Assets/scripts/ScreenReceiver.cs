@@ -26,14 +26,15 @@ public class ScreenReceiver : NetworkBehaviour
     private ConcurrentQueue<byte[]> frameQueue = new ConcurrentQueue<byte[]>();
     private Texture2D screenTexture;
 
-    // Chunk assembly data
+    // Frame chunk assembly data
     private List<byte> receivedFrameBuffer = new List<byte>();
     private int expectedChunks = 0;
     private int receivedChunks = 0;
 
-    const int MaxChunkSize = 1019;  // NGO-safe
-    const int TextureWidth = 1920;
-    const int TextureHeight = 1080;
+    const int MaxChunkSize = 950; // NGO safe size
+    const int TextureWidth = 1280; // optimize bandwidth (was 1920)
+    const int TextureHeight = 720; // optimize bandwidth (was 1080)
+    const int JpegQuality = 50; // 50% compression - good balance
 
     void Start()
     {
@@ -52,20 +53,29 @@ public class ScreenReceiver : NetworkBehaviour
     {
         if (!IsOwner) return;
 
+        // Apply next received frame
         while (frameQueue.TryDequeue(out byte[] frameData))
         {
-            if (screenTexture.LoadImage(frameData))
+            try
             {
-                screenTexture.Apply();
+                if (screenTexture.LoadImage(frameData))
+                {
+                    screenTexture.Apply();
 
-                // Compress frame for network
-                byte[] compressed = screenTexture.EncodeToJPG(40);
-                SendCompressedFrame(compressed);
+                    // Send compressed frame through relay
+                    byte[] compressed = screenTexture.EncodeToJPG(JpegQuality);
+                    SendCompressedFrame(compressed);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("Frame decode error: " + e.Message);
             }
         }
     }
 
-    // --------- Chunked Sending ----------
+    // ======================== CHUNK STREAMING ========================
+
     void SendCompressedFrame(byte[] data)
     {
         int totalChunks = Mathf.CeilToInt((float)data.Length / MaxChunkSize);
@@ -75,13 +85,15 @@ public class ScreenReceiver : NetworkBehaviour
             int chunkSize = Math.Min(MaxChunkSize, data.Length - i * MaxChunkSize);
             byte[] chunk = new byte[chunkSize];
             Buffer.BlockCopy(data, i * MaxChunkSize, chunk, 0, chunkSize);
-            SendFrameChunkServerRpc(chunk, i, totalChunks, new NetworkObjectReference(GetComponent<NetworkObject>()));
+
+            SendFrameChunkServerRpc(chunk, i, totalChunks);
         }
     }
 
     [ServerRpc(RequireOwnership = false)]
-    void SendFrameChunkServerRpc(byte[] chunk, int chunkIndex, int totalChunks, NetworkObjectReference objRef)
+    void SendFrameChunkServerRpc(byte[] chunk, int chunkIndex, int totalChunks, ServerRpcParams rpcParams = default)
     {
+        // When first chunk arrives, reset
         if (chunkIndex == 0)
         {
             receivedFrameBuffer.Clear();
@@ -92,51 +104,30 @@ public class ScreenReceiver : NetworkBehaviour
         receivedFrameBuffer.AddRange(chunk);
         receivedChunks++;
 
+        // When full frame received -> broadcast to all clients
         if (receivedChunks >= expectedChunks)
         {
-            ApplyReceivedFrame(receivedFrameBuffer.ToArray());
+            byte[] fullImage = receivedFrameBuffer.ToArray();
             receivedFrameBuffer.Clear();
             receivedChunks = 0;
             expectedChunks = 0;
+
+            // Send to everyone else
+            UpdateTextureClientRpc(fullImage);
         }
-        ReceiveFrameChunkClientRpc(chunk, chunkIndex, totalChunks, objRef);
     }
+
     [ClientRpc]
-    void ReceiveFrameChunkClientRpc(byte[] chunk, int chunkIndex, int totalChunks, NetworkObjectReference objRef)
-    {
-        if (!objRef.TryGet(out NetworkObject netObj))
-        {
-            if(netObj != GetComponent<NetworkObject>())
-                return;
-        }
-        
-
-        if (chunkIndex == 0)
-        {
-            receivedFrameBuffer.Clear();
-            receivedChunks = 0;
-            expectedChunks = totalChunks;
-        }
-
-        receivedFrameBuffer.AddRange(chunk);
-        receivedChunks++;
-
-        if (receivedChunks >= expectedChunks)
-        {
-            ApplyReceivedFrame(receivedFrameBuffer.ToArray());
-            receivedFrameBuffer.Clear();
-            receivedChunks = 0;
-            expectedChunks = 0;
-        }
-    }
-    void ApplyReceivedFrame(byte[] imageBytes)
+    void UpdateTextureClientRpc(byte[] imageBytes, ClientRpcParams rpcParams = default)
     {
         try
         {
             Texture2D tex = new Texture2D(TextureWidth, TextureHeight, TextureFormat.RGB24, false);
             tex.LoadImage(imageBytes);
             tex.Apply();
-            rawImage.texture = tex;
+
+            if (rawImage != null)
+                rawImage.texture = tex;
         }
         catch (Exception e)
         {
@@ -144,9 +135,11 @@ public class ScreenReceiver : NetworkBehaviour
         }
     }
 
-    // --------- TCP Receiver ----------
+    // ======================== TCP STREAM INPUT ========================
+
     void ConnectToServer(string ip, int port)
     {
+        if (!IsOwner) return;
         if (attemptingConnection) return;
         attemptingConnection = true;
 
@@ -158,7 +151,7 @@ public class ScreenReceiver : NetworkBehaviour
                 client.Connect(ip, port);
                 stream = client.GetStream();
                 connected = true;
-                Debug.Log("Connected to Python streamer!");
+                Debug.Log("✅ Connected to Python streamer");
 
                 tcpReceiverThread = new Thread(ReceiveFrames);
                 tcpReceiverThread.IsBackground = true;
@@ -205,6 +198,7 @@ public class ScreenReceiver : NetworkBehaviour
             Debug.LogError("Frame receive error: " + e.Message);
             connected = false;
 
+            // Auto reconnect
             Thread reconnectThread = new Thread(() => ConnectToServer(streamerIP, streamerPort));
             reconnectThread.IsBackground = true;
             reconnectThread.Start();

@@ -15,6 +15,7 @@ public class PresenterManager : NetworkBehaviour
 
     void Update()
     {
+        if(IsServer) return;
         if (present && currentPresenter != null)
             rawImage.texture = currentPresenter.rawImage.texture;
         else
@@ -25,7 +26,6 @@ public class PresenterManager : NetworkBehaviour
         if (networkObjectReference.TryGet(out NetworkObject netObj))
         {
             currentPresenter = netObj.GetComponent<ScreenReceiver>();
-            present = true;
             setPresentClientRpc(networkObjectReference);
         }
         else

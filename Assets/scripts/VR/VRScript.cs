@@ -18,7 +18,6 @@ public class VRScript : NetworkBehaviour
             {
                 cam.enabled = false;
             }
-            Debug.Log("Not the owner, disabling VRScript.");
             gameObject.SetActive(false);
             return;
         }
