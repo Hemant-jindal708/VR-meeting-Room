@@ -57,15 +57,4 @@ public class PresenterManager : NetworkBehaviour
     {
         present = isPresent;
     }
-    [ClientRpc(RequireOwnership = false)]
-    public void kickClientRpc(ulong ClientID)
-    {
-        if (NetworkManager.Singleton.LocalClientId == ClientID)
-        {
-            SceneManager.LoadScene("MeetingRoom");
-            VivoxService.Instance.LogoutAsync();
-            NetworkManager.Singleton.DisconnectClient(ClientID);
-            Debug.Log($"[Client {ClientID}] Kicked from server.");
-        }
-    }
 }

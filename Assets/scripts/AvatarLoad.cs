@@ -2,6 +2,8 @@ using UnityEngine;
 using Unity.Netcode;
 using TMPro;
 using Unity.Collections;
+using UnityEngine.SceneManagement;
+using Unity.Services.Vivox;
 
 public class AvatarLoaderWithConstraint : NetworkBehaviour
 {
@@ -9,7 +11,7 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
     public ParticipentData participentData;
 
     [Header("UI")]
-    [SerializeField] private TextMeshProUGUI[] nameTag= new TextMeshProUGUI[4];
+    [SerializeField] private TextMeshProUGUI[] nameTag = new TextMeshProUGUI[4];
     private Transform chairPosition;
 
     private NetworkVariable<FixedString64Bytes> playerName =
@@ -36,8 +38,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
 
         if (IsOwner)
         {
-            Debug.Log($"[Client {OwnerClientId}] OnNetworkSpawn called.");
-
             var button = FindAnyObjectByType<ButtonBehaviourAdder>();
             if (button != null)
             {
@@ -51,10 +51,18 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
             }
         }
     }
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+        if (IsOwner)
+        {
+            SceneManager.LoadScene("MeetingRoom");
+            VivoxService.Instance.LogoutAsync();
+        }
+    }
     [ServerRpc(RequireOwnership = false)]
     void setServerButtonsServerRpc(NetworkObjectReference objRef, string name)
     {
-        Debug.Log($"[Server] Adding button for client {name}");
         FindAnyObjectByType<ServerScript>().addButton(objRef, name);
     }
 
@@ -87,7 +95,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
         if (!objRef.TryGet(out NetworkObject netObj))
             return;
 
-        Debug.Log($"[Server] Assigning chair for client {netObj.OwnerClientId}");
 
         chairPosition = FindAnyObjectByType<ChairPositions>().getChair(netObj.gameObject);
 
@@ -98,10 +105,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
 
             UpdateChairPositionClientRpc(objRef, chairPosition.position, chairPosition.rotation);
         }
-        else
-        {
-            Debug.LogWarning($"[Server] No chair found for client {netObj.OwnerClientId}");
-        }
     }
 
     [ClientRpc(RequireOwnership = false)]
@@ -109,7 +112,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
     {
         if (!objRef.TryGet(out NetworkObject netObj)) return;
 
-        Debug.Log($"[Client] Updating chair position for ClientID: {netObj.OwnerClientId}");
 
         netObj.transform.position = pos;
         netObj.transform.rotation = rot;
@@ -122,7 +124,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
             newName = $"Player_{OwnerClientId}";
 
         playerName.Value = newName;
-        Debug.Log($"[Server] Name set for ClientID {OwnerClientId}: {newName}");
     }
 
     private void OnNameChanged(FixedString64Bytes oldValue, FixedString64Bytes newValue)
@@ -132,11 +133,6 @@ public class AvatarLoaderWithConstraint : NetworkBehaviour
             if (nameTag != null)
             {
                 nameTag.text = newValue.ToString();
-                Debug.Log($"[Client] Name updated to: {newValue}");
-            }
-            else
-            {
-                Debug.LogWarning("[Client] NameTag not found to update name text!");
             }
         }
     }

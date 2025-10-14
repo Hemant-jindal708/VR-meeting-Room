@@ -14,13 +14,11 @@ public class ServerScript : NetworkBehaviour
 
     public void Start()
     {
-        Debug.Log("Server started");
         canvas.SetActive(true);
     }
 
     public void setpresenter(NetworkObject networkObject)
     {
-        Debug.Log($"[Server] setpresenter called for client {networkObject.OwnerClientId}");
         FindAnyObjectByType<PresenterManager>().setPresenter(new NetworkObjectReference(networkObject));
     }
 
@@ -30,7 +28,6 @@ public class ServerScript : NetworkBehaviour
         {
             if (btn != null && btn.clientId == ClientID)
             {
-                Debug.Log("button destroyed");
                 Destroy(btn.gameObject);
                 break;
             }
@@ -43,17 +40,13 @@ public class ServerScript : NetworkBehaviour
                 break;
             }
         }
-        FindAnyObjectByType<PresenterManager>().kickClientRpc(ClientID);
-        Debug.Log($"[Server] kickParticipant called for client {ClientID}");
         NetworkManager.Singleton.DisconnectClient(ClientID);
     }
     
     public void addButton(NetworkObjectReference networkObjectReference, string name)
     {
-        Debug.Log($"[Server] Adding button for client {name}");
         if (networkObjectReference.TryGet(out NetworkObject networkObject))
         {
-            Debug.Log($"[Server] Successfully retrieved NetworkObject for client {name}");
 
             // Store values before any operations
             ulong clientId = networkObject.OwnerClientId;
@@ -75,12 +68,10 @@ public class ServerScript : NetworkBehaviour
             }
             else
             {
-                Debug.Log($"[Server] Kick button created successfully");
                 kickbutton.interactable = true; // Ensure button is interactable
                 kickbutton.onClick.RemoveAllListeners(); // Clear any existing listeners
                 kickbutton.onClick.AddListener(() =>
                 {
-                    Debug.Log($"[Server] Kick button clicked for client {clientId}");
                     kickParticipant(clientId);
                 });
 
@@ -88,11 +79,6 @@ public class ServerScript : NetworkBehaviour
                 if (kickText != null)
                 {
                     kickText.text = name;
-                    Debug.Log($"[Server] Kick button text set to {name}");
-                }
-                else
-                {
-                    Debug.LogError("[Server] TextMeshProUGUI component not found on kick button!");
                 }
             }
 
@@ -106,12 +92,10 @@ public class ServerScript : NetworkBehaviour
             }
             else
             {
-                Debug.Log($"[Server] Presenter button created successfully");
                 presenterbutton.interactable = true; // Ensure button is interactable
                 presenterbutton.onClick.RemoveAllListeners(); // Clear any existing listeners
                 presenterbutton.onClick.AddListener(() =>
                 {
-                    Debug.Log($"[Server] Presenter button clicked for client {clientId}");
                     setpresenter(netObj);
                 });
 
@@ -119,11 +103,6 @@ public class ServerScript : NetworkBehaviour
                 if (presenterText != null)
                 {
                     presenterText.text = name;
-                    Debug.Log($"[Server] Presenter button text set to {name}");
-                }
-                else
-                {
-                    Debug.LogError("[Server] TextMeshProUGUI component not found on presenter button!");
                 }
             }
 
@@ -145,11 +124,6 @@ public class ServerScript : NetworkBehaviour
                     break;
                 }
             }
-            Debug.Log($"[Server] Buttons added for {name}. Kick list active: {iskicklistActive}, Presenter list active: {ispresenterlistActive}");
-        }
-        else
-        {
-            Debug.LogError($"[Server] Failed to retrieve NetworkObject for {name}");
         }
     }
 }

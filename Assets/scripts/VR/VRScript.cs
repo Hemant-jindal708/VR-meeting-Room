@@ -1,4 +1,3 @@
-using Unity.Mathematics;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,11 +5,20 @@ public class VRScript : NetworkBehaviour
 {
     public GameObject camera1;
     Quaternion initialRotation;
+    [SerializeField]Camera[] cameras;
+    GameObject player;
 
     void Start()
     {
         if (!IsOwner)
         {
+            player = GetComponentInParent<AvatarLoaderWithConstraint>().gameObject;
+            cameras = player.GetComponentsInChildren<Camera>();
+            foreach (var cam in cameras)
+            {
+                cam.enabled = false;
+            }
+            Debug.Log("Not the owner, disabling VRScript.");
             gameObject.SetActive(false);
             return;
         }
